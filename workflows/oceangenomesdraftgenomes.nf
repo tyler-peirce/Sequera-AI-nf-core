@@ -10,6 +10,40 @@ include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pi
 include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_oceangenomesdraftgenomes_pipeline'
 
+//assembly
+include { MERYL_COUNT } from '../modules/nf-core/meryl/count/main'
+include { MERYL_UNIONSUM } from '../modules/nf-core/meryl/unionsum/main'
+include { MERYL_HISTOGRAM } from '../modules/nf-core/meryl/histogram/main'
+include { GENOMESCOPE2 } from '../modules/nf-core/genomescope2/main'
+include { MEGAHIT } from '../modules/nf-core/megahit/main'
+
+//decontamination
+include { FCS_FCSGX } from '../modules/nf-core/fcs/fcsgx/main'
+include { FCSGX_CLEANGENOME } from '../modules/nf-core/fcsgx/cleangenome/main'
+include { BBMAP_FILTERBYNAME } from '../modules/nf-core/bbmap/filterbyname/main'
+include { FCS_FCSADAPTOR } from '../modules/nf-core/fcs/fcsadaptor/main'
+include { FCSGX_CLEANGENOME AS FSCSGX_CLEANGENOME_ADAPTOR } from '../modules/nf-core/fcsgx/cleangenome/main'
+include { TIARA_TIARA } from '../modules/nf-core/tiara/tiara/main'
+include { BBMAP_FILTERBYNAME AS BBMAP_FILTERBYNAME_TIARA } from '../modules/nf-core/bbmap/filterbyname/main'
+
+//QC
+include { BUSCO_BUSCO AS BUSCO_ACTI } from '../modules/nf-core/busco/busco/main'
+include { BUSCO_BUSCO AS BUSCO_VERT } from '../modules/nf-core/busco/busco/main'
+include { BWAMEM2_INDEX } from '../modules/nf-core/bwamem2/index/main'
+include { BWAMEM2_MEM AS BWAMEM2_MEM_ACTI } from '../modules/nf-core/bwamem2/mem/main'
+include { BWAMEM2_MEM AS BWAMEM2_MEM_VERT } from '../modules/nf-core/bwamem2/mem/main'
+include { MERQURY_MERQURY } from '../modules/nf-core/merqury/merqury/main'
+include { GFASTATS } from '../modules/nf-core/gfastats/main'
+
+//mitogenome
+include { GETORGANELLE_CONFIG } from '../modules/nf-core/getorganelle/config/main'
+include { GETORGANELLE_FROMREADS } from '../modules/nf-core/getorganelle/fromreads/main'
+include { EMMA } from '../modules/local/emma/main'
+include { MITOZ } from '../modules/local/mitoz/main'
+include { BLAST_BLASTN } from '../modules/nf-core/blast/blastn/main'
+include { BLAST_BLASTP } from '../modules/nf-core/blast/blastp/main'
+include { LCA } from '../modules/local/lca/main'
+
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     RUN MAIN WORKFLOW
@@ -32,6 +66,119 @@ workflow OCEANGENOMESDRAFTGENOMES {
     )
     ch_multiqc_files = ch_multiqc_files.mix(FASTQC.out.zip.collect{it[1]})
     ch_versions = ch_versions.mix(FASTQC.out.versions.first())
+
+
+    //
+    // MODULE: Run Meryl
+    //
+
+
+
+
+
+    //
+    // MODULE: Run Genomescope
+    //
+
+
+
+    //
+    // MODULE: Run Megahit
+    //
+
+
+
+
+    //
+    // MODULE: Run fcs-gx find contamination
+    //
+
+
+
+    //
+    // MODULE: Run fcs-gx clean
+    //
+
+
+
+    //
+    // MODULE: Run bbmap filter
+    //
+
+
+
+
+    //
+    // MODULE: Run fcs adaptor find
+    //
+
+
+
+    //
+    // MODULE: Run fcs-gx clean adaptor
+    //
+
+
+
+
+    //
+    // MODULE: Run Tiara
+    //
+
+
+
+
+    //
+    // MODULE: Run bbmap to filter tiara contamination
+    //
+
+
+QC
+
+    //
+    // MODULE: Run BUSCO
+    //
+
+
+
+
+    //
+    // MODULE: Run BWA index
+    //
+
+
+
+
+    //
+    // MODULE: Run BWA align
+    //
+
+
+
+    //
+    // MODULE: Run Merqury
+    //
+
+
+
+
+    //
+    // MODULE: Run gfa stats
+    //
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     //
     // Collate and save software versions
@@ -87,6 +234,8 @@ workflow OCEANGENOMESDRAFTGENOMES {
 
     emit:multiqc_report = MULTIQC.out.report.toList() // channel: /path/to/multiqc_report.html
     versions       = ch_versions                 // channel: [ path(versions.yml) ]
+
+
 
 }
 
