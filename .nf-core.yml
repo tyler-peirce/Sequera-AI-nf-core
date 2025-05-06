@@ -1,0 +1,17 @@
+repository_type: pipeline
+
+nf_core_version: 3.2.1
+
+lint: {}
+
+template:
+  org: nf-core
+  name: oceangenomesdraftgenomes
+  description: An nf-core pipeline for draft genome assembly, mitogenome assembly
+    and LCA for species validation from Illumina short read data.
+  author: Tyler Peirce
+  version: 1.0.0dev
+  force: true
+  outdir: .
+  skip_features: []
+  is_nfcore: true
