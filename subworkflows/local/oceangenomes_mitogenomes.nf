@@ -3,37 +3,6 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-include { FASTQC                 } from '../modules/nf-core/fastqc/main'
-include { MULTIQC                } from '../modules/nf-core/multiqc/main'
-include { paramsSummaryMap       } from 'plugin/nf-schema'
-include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pipeline'
-include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
-include { methodsDescriptionText } from '../subworkflows/local/utils_nfcore_oceangenomesdraftgenomes_pipeline'
-
-//assembly
-include { MERYL_COUNT } from '../modules/nf-core/meryl/count/main'
-include { MERYL_UNIONSUM } from '../modules/nf-core/meryl/unionsum/main'
-include { MERYL_HISTOGRAM } from '../modules/nf-core/meryl/histogram/main'
-include { GENOMESCOPE2 } from '../modules/nf-core/genomescope2/main'
-include { MEGAHIT } from '../modules/nf-core/megahit/main'
-
-//decontamination
-include { FCS_FCSGX } from '../modules/nf-core/fcs/fcsgx/main'
-include { FCSGX_CLEANGENOME } from '../modules/nf-core/fcsgx/cleangenome/main'
-include { BBMAP_FILTERBYNAME } from '../modules/nf-core/bbmap/filterbyname/main'
-include { FCS_FCSADAPTOR } from '../modules/nf-core/fcs/fcsadaptor/main'
-include { FCSGX_CLEANGENOME AS FSCSGX_CLEANGENOME_ADAPTOR } from '../modules/nf-core/fcsgx/cleangenome/main'
-include { TIARA_TIARA } from '../modules/nf-core/tiara/tiara/main'
-include { BBMAP_FILTERBYNAME AS BBMAP_FILTERBYNAME_TIARA } from '../modules/nf-core/bbmap/filterbyname/main'
-
-//QC
-include { BUSCO_BUSCO AS BUSCO_ACTI } from '../modules/nf-core/busco/busco/main'
-include { BUSCO_BUSCO AS BUSCO_VERT } from '../modules/nf-core/busco/busco/main'
-include { BWAMEM2_INDEX } from '../modules/nf-core/bwamem2/index/main'
-include { BWAMEM2_MEM AS BWAMEM2_MEM_ACTI } from '../modules/nf-core/bwamem2/mem/main'
-include { BWAMEM2_MEM AS BWAMEM2_MEM_VERT } from '../modules/nf-core/bwamem2/mem/main'
-include { MERQURY_MERQURY } from '../modules/nf-core/merqury/merqury/main'
-include { GFASTATS } from '../modules/nf-core/gfastats/main'
 
 //mitogenome
 include { GETORGANELLE_CONFIG } from '../modules/nf-core/getorganelle/config/main'
@@ -46,137 +15,80 @@ include { LCA } from '../modules/local/lca/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    RUN MAIN WORKFLOW
+    RUN MITOGENOME WORKFLOW
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
 workflow OCEANGENOMESDRAFTGENOMES {
 
-    take:
-    ch_samplesheet // channel: samplesheet read in from --input
-    main:
+    // Input channels that are set up to run from different stages. If you provide the assembled genome path then it will skip the getorganelle
+    // Input channels
+    // If params.fastq is provided to the filtered and trimmed reade the subworkflow can be run seperate from the main workflow
+    ch_fastq = params.fastq ? Channel.fromPath(params.fastq) : Channel.empty()
+    // If params.mito is provided to the assembled mitogenome then the workflow will start from annotation
+    ch_mito = params.mito ? Channel.fromPath(params.mito) : Channel.empty()
+    // if params.anno is provided to the annotated mitogenome fasta file then the workflow will start from the LCA part of the workflow
+    ch_anno = params.anno ? Channel.fromPath(params.anno) : Channel.empty()
+    
+    // take:
+    // ch_samplesheet // channel: samplesheet read in from --input
+    // main:
 
-    ch_versions = Channel.empty()
-    ch_multiqc_files = Channel.empty()
-    //
-    // MODULE: Run FastQC
-    //
-    FASTQC (
-        ch_samplesheet
+    // ch_versions = Channel.empty()
+    // ch_multiqc_files = Channel.empty()
+
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    RUN ASSEMBLY USING GET ORGANELLE
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+
+    GETORGANELLE_CONFIG (
+        // val(organelle_type)
     )
-    ch_multiqc_files = ch_multiqc_files.mix(FASTQC.out.zip.collect{it[1]})
-    ch_versions = ch_versions.mix(FASTQC.out.versions.first())
 
+    GETORGANELLE_FROMREADS (
+        // tuple val(meta), path(fastq)
+        // tuple val(organelle_type), path(db)  // getOrganelle has a database and config file
+    )
 
-    //
-    // MODULE: Run Meryl
-    //
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    RUN ANNOTATION, EMMA FOR MAIN ANNOTATION AND MITOZ FOR COMPARISON
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
 
+    EMMA (
+        // tuple val(og_num), val(prefix), path(fasta)
+    )
 
+    MITOZ (
+        
+    )
 
+    // maybe a python module to run the code to extract the cds and translate them
+    EXTRACT_SEQUENCE (
 
+    )
 
-    //
-    // MODULE: Run Genomescope
-    //
+    TRANSLATE (
 
+    )
 
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    USING CO1,12s and 16s RUN BLAST TO THE DETERMINE LCA FOR SPECIES VALIDATION
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
 
-    //
-    // MODULE: Run Megahit
-    //
+    BLAST_BLASTN (
+        // tuple val(meta) , path(fasta)
+        // tuple val(meta2), path(db)
+    )
 
-
-
-
-    //
-    // MODULE: Run fcs-gx find contamination
-    //
-
-
-
-    //
-    // MODULE: Run fcs-gx clean
-    //
-
-
-
-    //
-    // MODULE: Run bbmap filter
-    //
-
-
-
-
-    //
-    // MODULE: Run fcs adaptor find
-    //
-
-
-
-    //
-    // MODULE: Run fcs-gx clean adaptor
-    //
-
-
-
-
-    //
-    // MODULE: Run Tiara
-    //
-
-
-
-
-    //
-    // MODULE: Run bbmap to filter tiara contamination
-    //
-
-
-QC
-
-    //
-    // MODULE: Run BUSCO
-    //
-
-
-
-
-    //
-    // MODULE: Run BWA index
-    //
-
-
-
-
-    //
-    // MODULE: Run BWA align
-    //
-
-
-
-    //
-    // MODULE: Run Merqury
-    //
-
-
-
-
-    //
-    // MODULE: Run gfa stats
-    //
-
-
-
-
-
-
-
-
-
-
-
-
+    LCA (
+        // tuple val(og_num), val(prefix), val(emma_prefix), path(lca)
+    )
 
 
 
