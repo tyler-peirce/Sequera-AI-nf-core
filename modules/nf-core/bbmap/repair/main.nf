@@ -1,40 +1,44 @@
 process BBMAP_REPAIR {
-    tag "$meta.id"
-    label 'process_single'
+    tag "$ogid"
+    label 'process_medium'
     conda "${moduleDir}/environment.yml"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/5a/5aae5977ff9de3e01ff962dc495bfa23f4304c676446b5fdf2de5c7edfa2dc4e/data' :
         'community.wave.seqera.io/library/bbmap_pigz:07416fe99b090fa9' }"
 
     input:
-    tuple val(meta), path(reads)
+    tuple val(ogid), path(reads)
     val(interleave)
 
     output:
-    tuple val(meta), path("*_repaired.fastq.gz")         , emit: repaired
-    tuple val(meta), path("${prefix}_singleton.fastq.gz"), emit: singleton
+    tuple val(ogid), path("${prefix}.R*.fq.gz")         , emit: repaired
     path  "versions.yml"                                 , emit: versions
-    path  "*.log"                                        , emit: log
+    path  "*paicheck.log"                                        , emit: log
 
     when:
-    task.ext.when == null || task.ext.when
+    task.ext.when ?: true
 
     script:
     def args   = task.ext.args ?: ''
-    prefix = task.ext.prefix ?: "${meta.id}"
-    in_reads  = ( interleave )  ? "in=${reads[0]}" : "in=${reads[0]} in2=${reads[1]}"
-    out_reads = ( interleave )  ? "out=${prefix}_repaired.fastq.gz outs=${prefix}_singleton.fastq.gz"
-                                : "out=${prefix}_1_repaired.fastq.gz out2=${prefix}_2_repaired.fastq.gz outs=${prefix}_singleton.fastq.gz"
+    prefix = task.ext.prefix ?: "${ogid}.ilmn.${params.run}"
+    in_reads  = ( interleave )  ?: "in=${prefix}.cat.R1.fq.gz in2=${prefix}.cat.R2.fq.gz"
+    out_reads = ( interleave )  ?: "out=${prefix}.R1.fq.gz out2=${prefix}.R2.fq.gz"
+      
+ 
     """
+    cat ${ogid}*R1*.gz > ${prefix}.cat.R1.fq.gz && echo "cat R1 completed"
+    cat ${ogid}*R2*.gz > ${prefix}.cat.R2.fq.gz && echo "cat R2 completed" 
+
     maxmem=\$(echo \"$task.memory\"| sed 's/ GB/g/g')
     repair.sh \\
         -Xmx\$maxmem \\
         $in_reads \\
         $out_reads \\
-        threads=${task.cpus}
-        ${args} \\
-        &> ${prefix}.repair.sh.log
-
+        threads=${task.cpus} \\
+        ${args} 
+    
+    cp .command.log ${prefix}.paicheck.log
+        
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         bbmap: \$(bbversion.sh | grep -v "Duplicate cpuset")
@@ -44,11 +48,6 @@ process BBMAP_REPAIR {
     stub:
     prefix = task.ext.prefix ?: "${meta.id}"
     """
-    echo "" | gzip > ${prefix}_1_repaired.fastq.gz
-    echo "" | gzip > ${prefix}_2_repaired.fastq.gz
-    echo "" | gzip > ${prefix}_singleton.fastq.gz
-    touch ${prefix}.repair.sh.log
-
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         bbmap: \$(bbversion.sh | grep -v "Duplicate cpuset")

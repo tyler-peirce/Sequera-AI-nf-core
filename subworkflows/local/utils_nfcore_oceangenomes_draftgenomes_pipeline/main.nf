@@ -31,7 +31,7 @@ workflow PIPELINE_INITIALISATION {
     monochrome_logs   // boolean: Do not use coloured log outputs
     nextflow_cli_args //   array: List of positional nextflow CLI args
     outdir            //  string: The output directory where the results will be saved
-    input             //  string: Path to input samplesheet
+    // input             //  string: Path to input samplesheet // this is now inncliuded in the samplesheetHybrid wf
 
     main:
 
@@ -51,7 +51,7 @@ workflow PIPELINE_INITIALISATION {
     // Validate parameters and generate parameter summary to stdout
     //
 
-    def String workflow_command = "nextflow run ${workflow.manifest.name} -profile <docker/singularity/.../institute> --input samplesheet.csv --outdir <OUTDIR>"
+    def String workflow_command = "nextflow run ${workflow.manifest.name} -profile <docker/singularity/.../institute> --outdir <OUTDIR>"
     UTILS_NFSCHEMA_PLUGIN (
         workflow,
         validate_params,
@@ -81,7 +81,7 @@ workflow PIPELINE_INITIALISATION {
         
     // emit:
     // samplesheet = ch_samplesheet
-    versions    = ch_versions
+    // versions    = ch_versions
 }
 
 /*
@@ -147,17 +147,17 @@ def validateInputParameters() {
 //
 // Validate channels from input samplesheet
 //
-def validateInputSamplesheet(input) {
-    def (metas, fastqs) = input[1..2]
+// def validateInputSamplesheet(input) {
+//     def (metas, fastqs) = input[1..2]
 
-    // Check that multiple runs of the same sample are of the same datatype i.e. single-end / paired-end
-    def endedness_ok = metas.collect{ meta -> meta.single_end }.unique().size == 1
-    if (!endedness_ok) {
-        error("Please check input samplesheet -> Multiple runs of a sample must be of the same datatype i.e. single-end or paired-end: ${metas[0].id}")
-    }
+//     // Check that multiple runs of the same sample are of the same datatype i.e. single-end / paired-end
+//     def endedness_ok = metas.collect{ meta -> meta.single_end }.unique().size == 1
+//     if (!endedness_ok) {
+//         error("Please check input samplesheet -> Multiple runs of a sample must be of the same datatype i.e. single-end or paired-end: ${metas[0].id}")
+//     }
 
-    return [ metas[0], fastqs ]
-}
+//     return [ metas[0], fastqs ]
+// }
 
 //
 // Generate methods description for MultiQC

@@ -5,8 +5,9 @@
 */
 //download files
 include { BASESPACE              } from '../modules/local/basespace/main'
-include { FASTQC                 } from '../modules/nf-core/fastqc/main'
+include { samplesheetHybrid      } from '../subworkflows/local/samplesheetHybrid'
 include { BBMAP_REPAIR           } from '../modules/nf-core/bbmap/repair/main'
+include { FASTQC                 } from '../modules/nf-core/fastqc/main'
 include { FASTP                  } from '../modules/nf-core/fastp/main'
 include { MULTIQC                } from '../modules/nf-core/multiqc/main'
 
@@ -61,28 +62,18 @@ workflow DRAFTGENOMES {
     take:
     //samplesheet // channel: samplesheet read in from --input
     run_id // params.run in nextflow.config
+    bs_config
     
     main:
 
     println "Run ID is: ${run_id}"  // ✅ Works fine here
+    println "bs_config is: ${bs_config}"  // ✅ Works fine here
     //samplesheet.view { sheet -> "Samplesheet contents: $sheet" }
 
     ch_versions = Channel.empty()
     ch_multiqc_files = Channel.empty()
 
 
-    //
-    // MODULE: Run FastQC
-    //
-    // FASTQC (
-    //     ch_samplesheet
-    // )
-    // ch_multiqc_files = ch_multiqc_files.mix(FASTQC.out.zip.collect{it[1]})
-    // ch_versions = ch_versions.mix(FASTQC.out.versions.first())
-
-    // sample_ch = params.input ?
-    //     Channel.fromPath(params.input).map { parse_csv(it) } :
-    //     generate_samplesheet_from_fastqs()
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -91,8 +82,8 @@ workflow DRAFTGENOMES {
 */
 
     BASESPACE (
-        run_id // val run
-        //params.bs_config// path config ??? i dont think this one is needed maybe a carry over from adams script but not used in this code
+        run_id, // val run
+        bs_config //params.bs_config// path config ??? i dont think this one is needed maybe a carry over from adams script but not used in this code
     )
 
     // // Run fastqc on all of the fastq files
@@ -100,36 +91,82 @@ workflow DRAFTGENOMES {
     //     BASESPACE.out.fastqs.flatten() // tuple val(meta), path(reads)
     // )
 
-    // // Group fastq reads by OGID
-    // reads_by_ogid = BASESPACE.out.fastqs
-    //     .flatten()
-    //     .map { file -> 
-    //         def ogid = (file.name =~ /^([A-Z]+\\d+)/)[0][1]
-    //         return tuple(ogid, file)
-    //     }
-    //     .groupTuple()
+    // Group fastq reads by OGID
+    reads_by_ogid = BASESPACE.out.fastqs
+        .flatten()
+        .map { file -> 
+            def matcher = file.name =~ /^([A-Z]+\d+)/
+            if (matcher) {
+                def ogid = matcher[0][1]
+                return tuple(ogid, file)
+            } else {
+                log.info "Skipping non-matching file: ${file.name}"
+                return null  // Ignore files not matching OG123 etc.
+            }
+        }
+        .filter { it != null }  // Remove nulls from the channel
+        .groupTuple()  // <-- Group by ogid key
 
 
-    // BBMAP_REPAIR (
-    //     reads_by_ogid// tuple val(meta), path(reads)
-    //     // val(interleave)
-    // )
+    BBMAP_REPAIR (
+        reads_by_ogid, // tuple val(ogid), path(reads)
+        params.interleave// val(interleave)
+    )
 
-    // FASTP (
-    //     // tuple val(meta), path(reads)
-    //     // path  adapter_fasta
-    //     // val   discard_trimmed_pass
-    //     // val   save_trimmed_fail
-    //     // val   save_merged
-    // )
+    
+//     // define function to create a samplesheet from the fasq files
+//     def generate_samplesheet_from_fastqs() {
+//     Channel.fromPath("${params.pooled ?: './*{R1,R2}.fq.gz'}", checkIfExists: true)
+//         .groupTuple()
+//         .map { ogid, fastqs ->
+//             def meta = [ id: sample_id ]
+//             return [ meta.id, meta, fastqs ]
+//         }
+// }
+
+
+    //BBMAP_REPAIR.out.repaired.view()
+
+    repaired_ch = BBMAP_REPAIR.out.repaired
+    // Make a new channel from bbmap_repair output or from samplesheet
+    samplesheetHybrid(
+        repaired_ch
+    )
+    
+    // View samplesheet structure
+    samplesheetHybrid.out.samplesheet.view()
+
+    samplesheet_ch = samplesheetHybrid.out.samplesheet
+    // MODULE: Run FastQC
+    
+    FASTQC (
+        samplesheet_ch
+    )
+
+    // ch_multiqc_files = ch_multiqc_files.mix(FASTQC.out.zip.collect{it[1]})
+    // ch_versions = ch_versions.mix(FASTQC.out.versions.first())
+   // sample_ch = params.input ?
+    //     Channel.fromPath(params.input).map { parse_csv(it) } :
+    //     generate_samplesheet_from_fastqs()//
+
+
+
+    FASTP (
+        samplesheet_ch, // tuple val(meta), path(reads)
+        [], // path  adapter_fasta
+        [], // val   discard_trimmed_pass
+        [], // val   save_trimmed_fail
+        [], // val   save_merged
+    )
+
 
     // MULTIQC (
-    //     // path  multiqc_files, stageAs: "?/*"
-    //     // path(multiqc_config)
-    //     // path(extra_multiqc_config)
-    //     // path(multiqc_logo)
-    //     // path(replace_names)
-    //     // path(sample_names)
+    //     path  multiqc_files, stageAs: "?/*"
+    //     path(multiqc_config)
+    //     path(extra_multiqc_config)
+    //     path(multiqc_logo)
+    //     path(replace_names)
+    //     path(sample_names)
     // )
 
 /*
@@ -137,7 +174,7 @@ workflow DRAFTGENOMES {
     PASS THE FILTERED AND TRIMMED READS INTO THE MITOGENOME SUB WORKFLOW
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
-
+// doing this in main.nf now
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -346,7 +383,7 @@ workflow DRAFTGENOMES {
     softwareVersionsToYAML(ch_versions)
         .collectFile(
             storeDir: "${params.outdir}/pipeline_info",
-            name: 'nf_core_'  +  'oceangenomesdraftgenomes_software_'  + 'mqc_'  + 'versions.yml',
+            name: 'nf_core_'  +  'oceangenomes_draftgenomes_software_'  + 'mqc_'  + 'versions.yml',
             sort: true,
             newLine: true
         ).set { ch_collated_versions }
@@ -392,7 +429,9 @@ workflow DRAFTGENOMES {
         []
     )
 
-    emit:multiqc_report = MULTIQC.out.report.toList() // channel: /path/to/multiqc_report.html
+    emit:
+    fastp_reads = FASTP.out.reads // channel to the mitogenome pipeline
+    multiqc_report = MULTIQC.out.report.toList() // channel: /path/to/multiqc_report.html
     versions       = ch_versions                 // channel: [ path(versions.yml) ]
 
 

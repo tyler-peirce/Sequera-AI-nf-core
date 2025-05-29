@@ -16,6 +16,7 @@
 */
 
 include { DRAFTGENOMES  } from './workflows/draftgenomes'
+include { MITOGENOMES  } from './subworkflows/local/oceangenomes_mitogenomes'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_oceangenomes_draftgenomes_pipeline'
 include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_oceangenomes_draftgenomes_pipeline'
 
@@ -35,6 +36,7 @@ workflow OCEANGENOMES_DRAFTGENOMES {
     take:
     //samplesheet // channel: samplesheet read in from --input
         run_id
+        bs_config
 
     main:
 
@@ -43,7 +45,16 @@ workflow OCEANGENOMES_DRAFTGENOMES {
     //
     DRAFTGENOMES (
         //samplesheet
-        run_id
+        run_id,
+        bs_config,
+    )
+
+    println "DRAFTGENOMES emits: ${DRAFTGENOMES.out.fastp_reads}"
+
+
+    MITOGENOMES (
+        fastp_reads    = DRAFTGENOMES.out.fastp_reads,
+        organelle_type = "animal_mt"  // << pass it in here
     )
     emit:
     multiqc_report = DRAFTGENOMES.out.multiqc_report // channel: /path/to/multiqc_report.html
@@ -66,7 +77,7 @@ workflow {
         params.monochrome_logs,
         args,
         params.outdir,
-        params.input
+        // params.input // this is now inncliuded in the samplesheetHybrid wf
     )
 
     //
@@ -74,7 +85,8 @@ workflow {
     //
     OCEANGENOMES_DRAFTGENOMES (
         //PIPELINE_INITIALISATION.out.samplesheet
-        params.run
+        params.run,
+        params.bs_config
     )
 
     //

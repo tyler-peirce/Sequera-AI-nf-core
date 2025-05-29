@@ -12,7 +12,7 @@ process GETORGANELLE_FROMREADS {
     tuple val(organelle_type), path(db)  // getOrganelle has a database and config file
 
     output:
-    tuple val(meta), path("results/${prefix}.${organelle_type}.fasta.gz"), emit: fasta, optional: true
+    tuple val(meta), path("mtdna/${prefix}.fasta"), emit: fasta, optional: true
     path "results/*"                                                     , emit: etc // the rest of the result files
     path "versions.yml"                                                  , emit: versions
 
@@ -21,23 +21,25 @@ process GETORGANELLE_FROMREADS {
 
     script:
     def args   = task.ext.args ?: ''
-    def prefix = task.ext.prefix ?: "${meta.id}"
+    def prefix = task.ext.prefix ?: "${meta.id}.ilmn.${meta.date}.getorg\${version}"
 
     """
+    version=\$(get_organelle_from_reads.py --version | sed 's/^GetOrganelle v//g' | sed 's/\\.//g')
+
     get_organelle_from_reads.py \\
         $args \\
-        --prefix ${meta.id}. \\
+        --prefix ${prefix}. \\
         -F $organelle_type \\
         --config-dir $db \\
         -t $task.cpus \\
         -1 ${fastq[0]} \\
         -2 ${fastq[1]} \\
-        -o results
+        -o mtdna
 
-    if [ -f "\$(find results -name ${prefix}.${organelle_type}*graph1.1*fasta )" ]; then
-        cp results/${prefix}.${organelle_type}*graph1.1*fasta results/${prefix}.${organelle_type}.fasta
-        gzip results/${prefix}.${organelle_type}.fasta
-    fi
+    wait
+            
+        mv mtdna/${prefix}.*1.1.*.fasta mtdna/${prefix}.fasta
+        sed -i "/^>/s/.*/>${prefix}/g" mtdna/${prefix}.fasta
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

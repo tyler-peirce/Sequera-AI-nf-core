@@ -1,33 +1,39 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://raw.githubusercontent.com/nf-core/oceangenomesdraftgenomes/master/assets/schema_input.json",
-    "title": "nf-core/oceangenomesdraftgenomes pipeline - params.input schema",
-    "description": "Schema for the file provided with params.input",
+    "$id": "https://raw.githubusercontent.com/nf-core/oceangenomes_draftgenomes/master/assets/schema_input.json",
+    "title": "nf-core/oceangenomes_draftgenomes pipeline - params.input schema",
+    "description": "Schema for the file provided with params.input for validating input samplesheet for draftgenomes pipeline.",
     "type": "array",
     "items": {
         "type": "object",
         "properties": {
-            "sample": {
-                "type": "string",
-                "pattern": "^\\S+$",
-                "errorMessage": "Sample name must be provided and cannot contain spaces",
-            },
-            "run": {
-                "type": "string"
-            },
-            "buscodb": {
-                "type": "string",
-                "description": "The BUSCO lineage dataset to use (e.g., actinopterygii or vertebrate)",
-                "enum": ["actinopterygii", "vertebrate"],
-                "errorMessage": "must be  either 'actinopterygii' or 'vertebrate'"
-            },
-            "species": {
-                "type": "string"
-            },
-            "taxonid": {
-                "type": "integer"
-            }
+          "sample": {
+            "type": "string",
+            "description": "Unique sample identifier (e.g., OG747).",
+            "pattern": "^\\S+$"
+          },
+          "run": {
+            "type": "string",
+            "description": "Sequencing run ID (e.g., NOVA_250131_AD).",
+            "pattern": "^[A-Za-z0-9_\\-\\.]+$"
+          },
+          "date": {
+            "type": "string",
+            "description": "Date code extracted from run (e.g., 250131).",
+            "pattern": "^\\d{6}$"
+          },
+          "R1": {
+            "type": "string",
+            "description": "Path to R1 FASTQ file.",
+            "pattern": ".*\\.R1\\.fq\\.gz$"
+          },
+          "R2": {
+            "type": "string",
+            "description": "Path to R2 FASTQ file.",
+            "pattern": ".*\\.R2\\.fq\\.gz$"
+          }
         },
-        "required": ["sample", "species", "taxonid"]
-    }
+        "required": ["sample", "run", "R1", "R2"],
+        "additionalProperties": false
+      }
 }
