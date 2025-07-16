@@ -71,6 +71,17 @@ workflow OCEANGENOMES_DRAFTGENOMES {
         curated_blast_db
     )
 
+    // Collect all MultiQC files from all subworkflows
+    ch_multiqc_files = ch_multiqc_files.mix(DRAFTGENOMES.out.multiqc_files)
+    ch_multiqc_files = ch_multiqc_files.mix(MITOGENOMES.out.multiqc_files)
+    ch_multiqc_files = ch_multiqc_files.mix(MITOGENOME_ANNOTATION.out.multiqc_files)
+    
+    // Collect all versions
+    ch_collated_versions = Channel.empty()
+    ch_collated_versions = ch_collated_versions.mix(DRAFTGENOMES.out.versions)
+    ch_collated_versions = ch_collated_versions.mix(MITOGENOMES.out.versions)
+    ch_collated_versions = ch_collated_versions.mix(MITOGENOME_ANNOTATION.out.versions)
+
     // println "MITOGENOMES_ANNOTATION emits: ${MITOGENOMES_ANNOTATION.out.  }"
 
     // MITOGENOME_QC (
@@ -117,8 +128,7 @@ workflow OCEANGENOMES_DRAFTGENOMES {
         []
     )
     emit:
-    multiqc_report = MULTIQC.out.report.toList() // channel: /path/to/multiqc_report.html
- ///need to fix up the multiqc stuff   
+    multiqc_report = MULTIQC.out.report.toList() // channel: /path/to/multiqc_report.html   
 }
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
