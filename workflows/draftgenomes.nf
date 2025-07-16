@@ -9,9 +9,8 @@ include { samplesheetHybrid      } from '../subworkflows/local/samplesheetHybrid
 include { BBMAP_REPAIR           } from '../modules/nf-core/bbmap/repair/main'
 include { FASTQC                 } from '../modules/nf-core/fastqc/main'
 include { FASTP                  } from '../modules/nf-core/fastp/main'
+
 include { MULTIQC                } from '../modules/nf-core/multiqc/main'
-
-
 include { paramsSummaryMap       } from 'plugin/nf-schema'
 include { paramsSummaryMultiqc   } from '../subworkflows/nf-core/utils_nfcore_pipeline'
 include { softwareVersionsToYAML } from '../subworkflows/nf-core/utils_nfcore_pipeline'
@@ -41,15 +40,6 @@ include { BWAMEM2_MEM as BWAMEM2_MEM_ACTI } from '../modules/nf-core/bwamem2/mem
 include { BWAMEM2_MEM as BWAMEM2_MEM_VERT } from '../modules/nf-core/bwamem2/mem/main'
 include { MERQURY_MERQURY } from '../modules/nf-core/merqury/merqury/main'
 include { GFASTATS } from '../modules/nf-core/gfastats/main'
-
-// //mitogenome
-// include { GETORGANELLE_CONFIG } from '../modules/nf-core/getorganelle/config/main'
-// include { GETORGANELLE_FROMREADS } from '../modules/nf-core/getorganelle/fromreads/main'
-// include { EMMA } from '../modules/local/emma/main'
-// include { MITOZ } from '../modules/local/mitoz/main'
-// include { BLAST_BLASTN } from '../modules/nf-core/blast/blastn/main'
-// include { BLAST_BLASTP } from '../modules/nf-core/blast/blastp/main'
-// include { LCA } from '../modules/local/lca/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -113,16 +103,6 @@ workflow DRAFTGENOMES {
         params.interleave// val(interleave)
     )
 
-    
-//     // define function to create a samplesheet from the fasq files
-//     def generate_samplesheet_from_fastqs() {
-//     Channel.fromPath("${params.pooled ?: './*{R1,R2}.fq.gz'}", checkIfExists: true)
-//         .groupTuple()
-//         .map { ogid, fastqs ->
-//             def meta = [ id: sample_id ]
-//             return [ meta.id, meta, fastqs ]
-//         }
-// }
 
 
     //BBMAP_REPAIR.out.repaired.view()
@@ -159,22 +139,6 @@ workflow DRAFTGENOMES {
         [], // val   save_merged
     )
 
-
-    // MULTIQC (
-    //     path  multiqc_files, stageAs: "?/*"
-    //     path(multiqc_config)
-    //     path(extra_multiqc_config)
-    //     path(multiqc_logo)
-    //     path(replace_names)
-    //     path(sample_names)
-    // )
-
-/*
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    PASS THE FILTERED AND TRIMMED READS INTO THE MITOGENOME SUB WORKFLOW
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-*/
-// doing this in main.nf now
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

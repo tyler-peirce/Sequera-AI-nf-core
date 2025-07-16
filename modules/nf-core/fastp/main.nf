@@ -26,7 +26,9 @@ process FASTP {
 
     script:
     def args = task.ext.args ?: ''
-    def prefix = task.ext.prefix ?: "${meta.id}.ilm.${meta.date}"
+    def base_prefix = task.ext.prefix ?: "${meta.id}.ilmn"
+    def prefix = task.ext.prefix ?: "${base_prefix}.${meta.date}"
+    def prefix_json = task.ext.prefix ?: "${base_prefix}.${meta.run}"
    
     """
     fastp \\
@@ -40,7 +42,7 @@ process FASTP {
         --max_len1 300 \\
         --max_len2 300 \\
         --length_required 100 \\
-        --json '${meta.id}.ilm.${meta.run}.fastp.json' \\
+        --json '${prefix_json}.fastp.json' \\
         --html '${prefix}.fastp.html' \\
         --report_title="${prefix} fastp" \\
         --thread $task.cpus \\

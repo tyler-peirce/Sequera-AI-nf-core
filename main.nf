@@ -17,10 +17,15 @@
 
 include { DRAFTGENOMES  } from './workflows/draftgenomes'
 include { MITOGENOMES  } from './subworkflows/local/oceangenomes_mitogenomes'
+include { MITOGENOME_ANNOTATION  } from './subworkflows/local/oceangenomes_mitogenome_annotation_LCA'
 include { PIPELINE_INITIALISATION } from './subworkflows/local/utils_nfcore_oceangenomes_draftgenomes_pipeline'
 include { PIPELINE_COMPLETION     } from './subworkflows/local/utils_nfcore_oceangenomes_draftgenomes_pipeline'
 
-
+include { MULTIQC                } from './modules/nf-core/multiqc/main'
+include { paramsSummaryMap       } from 'plugin/nf-schema'
+include { paramsSummaryMultiqc   } from './subworkflows/nf-core/utils_nfcore_pipeline'
+include { softwareVersionsToYAML } from './subworkflows/nf-core/utils_nfcore_pipeline'
+include { methodsDescriptionText } from './subworkflows/local/utils_nfcore_oceangenomes_draftgenomes_pipeline'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -37,16 +42,18 @@ workflow OCEANGENOMES_DRAFTGENOMES {
     //samplesheet // channel: samplesheet read in from --input
         run_id
         bs_config
-
+        curated_blast_db
+        
     main:
-
+    
+    ch_multiqc_files = Channel.empty()
     //
     // WORKFLOW: Run pipeline
     //
     DRAFTGENOMES (
         //samplesheet
         run_id,
-        bs_config,
+        bs_config
     )
 
     println "DRAFTGENOMES emits: ${DRAFTGENOMES.out.fastp_reads}"
@@ -54,10 +61,64 @@ workflow OCEANGENOMES_DRAFTGENOMES {
 
     MITOGENOMES (
         fastp_reads    = DRAFTGENOMES.out.fastp_reads,
-        organelle_type = "animal_mt"  // << pass it in here
+        organelle_type = "animal_mt",  // << pass it in here
+    )
+
+    println "MITOGENOMES emits: ${MITOGENOMES.out.mito_assembly}"
+
+    MITOGENOME_ANNOTATION (
+        mito_assembly   = MITOGENOMES.out.mito_assembly,
+        curated_blast_db
+    )
+
+    // println "MITOGENOMES_ANNOTATION emits: ${MITOGENOMES_ANNOTATION.out.  }"
+
+    // MITOGENOME_QC (
+
+    // )
+
+    //
+    // MODULE: MultiQC
+    //
+    ch_multiqc_config        = Channel.fromPath(
+        "$projectDir/assets/multiqc_config.yml", checkIfExists: true)
+    ch_multiqc_custom_config = params.multiqc_config ?
+        Channel.fromPath(params.multiqc_config, checkIfExists: true) :
+        Channel.empty()
+    ch_multiqc_logo          = params.multiqc_logo ?
+        Channel.fromPath(params.multiqc_logo, checkIfExists: true) :
+        Channel.empty()
+
+    summary_params      = paramsSummaryMap(
+        workflow, parameters_schema: "nextflow_schema.json")
+    ch_workflow_summary = Channel.value(paramsSummaryMultiqc(summary_params))
+    ch_multiqc_files = ch_multiqc_files.mix(
+        ch_workflow_summary.collectFile(name: 'workflow_summary_mqc.yaml'))
+    ch_multiqc_custom_methods_description = params.multiqc_methods_description ?
+        file(params.multiqc_methods_description, checkIfExists: true) :
+        file("$projectDir/assets/methods_description_template.yml", checkIfExists: true)
+    ch_methods_description                = Channel.value(
+        methodsDescriptionText(ch_multiqc_custom_methods_description))
+
+    ch_multiqc_files = ch_multiqc_files.mix(ch_collated_versions)
+    ch_multiqc_files = ch_multiqc_files.mix(
+        ch_methods_description.collectFile(
+            name: 'methods_description_mqc.yaml',
+            sort: true
+        )
+    )
+
+    MULTIQC (
+        ch_multiqc_files.collect(),
+        ch_multiqc_config.toList(),
+        ch_multiqc_custom_config.toList(),
+        ch_multiqc_logo.toList(),
+        [],
+        []
     )
     emit:
-    multiqc_report = DRAFTGENOMES.out.multiqc_report // channel: /path/to/multiqc_report.html
+    multiqc_report = MULTIQC.out.report.toList() // channel: /path/to/multiqc_report.html
+ ///need to fix up the multiqc stuff   
 }
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -76,7 +137,7 @@ workflow {
         params.validate_params,
         params.monochrome_logs,
         args,
-        params.outdir,
+        params.outdir
         // params.input // this is now inncliuded in the samplesheetHybrid wf
     )
 
@@ -84,9 +145,9 @@ workflow {
     // WORKFLOW: Run main workflow
     //
     OCEANGENOMES_DRAFTGENOMES (
-        //PIPELINE_INITIALISATION.out.samplesheet
         params.run,
-        params.bs_config
+        params.bs_config,
+        params.curated_blast_db
     )
 
     //

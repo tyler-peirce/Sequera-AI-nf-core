@@ -3,6 +3,16 @@
     IMPORT MODULES / SUBWORKFLOWS / FUNCTIONS
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
+
+//mitogenome
+include { DOWNLOAD_BLAST_DB } from '../../modules/local/download_blast_db/main'
+include { DOWNLOAD_TAXONKIT_DB } from '../../modules/local/download_taxonkit_db/main'
+include { EMMA } from '../../modules/local/EMMA/main'
+// include { MITOZ } from '../../modules/local/mitoz/main'
+include { BLAST_BLASTN } from '../../modules/nf-core/blast/blastn/main'
+// include { BLAST_BLASTP } from '../../modules/nf-core/blast/blastp/main'
+include { LCA } from '../../modules/local/LCA/main'
+
 // MultiQC and helper functions
 include { MULTIQC                   } from '../../modules/nf-core/multiqc/main'
 include { paramsSummaryMap          } from 'plugin/nf-schema'
@@ -10,9 +20,6 @@ include { paramsSummaryMultiqc      } from '../../subworkflows/nf-core/utils_nfc
 include { softwareVersionsToYAML    } from '../../subworkflows/nf-core/utils_nfcore_pipeline'
 include { methodsDescriptionText    } from '../../subworkflows/local/utils_nfcore_oceangenomes_draftgenomes_pipeline'
 
-//mitogenome
-include { GETORGANELLE_CONFIG } from '../../modules/nf-core/getorganelle/config/main'
-include { GETORGANELLE_FROMREADS } from '../../modules/nf-core/getorganelle/fromreads/main'
 
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -20,41 +27,79 @@ include { GETORGANELLE_FROMREADS } from '../../modules/nf-core/getorganelle/from
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-workflow MITOGENOMES {
+workflow MITOGENOME_ANNOTATION {
 
     take:
-    fastp_reads
-    organelle_type
+    mito_assembly //  tuple val(meta), path(fasta)
+    curated_blast_db
     
     main:
 
     ch_versions = Channel.empty()
     ch_multiqc_files = Channel.empty()
 
-     
+    // Download taxonomy database
+    DOWNLOAD_BLAST_DB(Channel.value("taxdb"))
+    // Download taxonkit database
+    DOWNLOAD_TAXONKIT_DB(Channel.value("taxdump"))
+
+    // Extracts the assembly name from the fasta file and creates new tuple
+    fasta_with_assembly_prefix = mito_assembly 
+        .map { meta, fasta ->
+            def assembly_prefix = fasta.baseName  // Gets "OG898.ilmn.250131.getorg1770"
+            [meta, fasta, assembly_prefix]
+        }
+
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    RUN ASSEMBLY USING GET ORGANELLE
+    RUN ANNOTATION, EMMA FOR MAIN ANNOTATION AND MITOZ FOR COMPARISON
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*/
+               
+    EMMA (
+        fasta_with_assembly_prefix // tuple val(meta), path(fasta), val(assembly_prefix)
+    )
+
+    // // Function to extract assembly name // This i can do within the process using fast.getbasename()
+    def getAnnotationName = { filename ->
+        def name = filename.toString().replaceAll(/\.fa$/, '')
+        def parts = name.split('\\.', 2)
+        return parts.size() > 1 ? parts[1] : name
+    }
+
+    // Use mix() to process Co1, 12s and 16s sequences through blast
+    combined_sequences = EMMA.out.co1_sequences
+        .map { meta, assembly_prefix, files -> 
+            def annotationName = getAnnotationName(files.name)
+            [meta, assembly_prefix, files, 'CO1', annotationName] 
+        }
+        .mix(
+            EMMA.out.s12_sequences.map { meta, assembly_prefix, files -> 
+                def annotationName = getAnnotationName(files.name)
+                [meta, assembly_prefix, files, '12s', annotationName] 
+            },
+            EMMA.out.s16_sequences.map { meta, assembly_prefix, files -> 
+                def annotationName = getAnnotationName(files.name)
+                [meta, assembly_prefix, files, '16s', annotationName] 
+            }
+        )
+/*
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    USING CO1,12s and 16s RUN BLAST TO DETERMINE LCA FOR SPECIES VALIDATION
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 */
 
-    GETORGANELLE_CONFIG (
-        organelle_type // val(organelle_type)
+    BLAST_BLASTN (
+        combined_sequences, // tuple val(meta), val(assembly_name), path(fasta), val(gene_type), val(annotation_name)
+        curated_blast_db,
+        DOWNLOAD_BLAST_DB.out.db_files // path(db)
     )
 
-    version_ch = GETORGANELLE_CONFIG.out.versions
-    .map { versions_file ->
-        def content = versions_file.text
-        def pattern = /getorganelle:\s*([^\s\n\r]+)/
-        def matcher = content =~ pattern
-        return matcher ? matcher[0][1].replaceAll(/["']/, '') : "unknown"
-    }
-
-    combined_input = fastp_reads.combine(GETORGANELLE_CONFIG.out.db).combine(version_ch)
-
-    GETORGANELLE_FROMREADS (
-        combined_input // tuple val(meta), path(fastq), val(organelle_type), path(db), val(version)  // getOrganelle has a database and config file
+    LCA (
+        BLAST_BLASTN.out.filtered, // tuple val(meta), path(blast_filtered), val(gene_type), val(assembly_name), val(annotation_name)
+        DOWNLOAD_TAXONKIT_DB.out.db_files // path(db)
     )
+
 
 
     //
@@ -69,9 +114,9 @@ workflow MITOGENOMES {
         ).set { ch_collated_versions }
 
 
-    //
-    // MODULE: MultiQC
-    //
+    // //
+    // // MODULE: MultiQC
+    // //
     ch_multiqc_config        = Channel.fromPath(
         "$projectDir/assets/multiqc_config.yml", checkIfExists: true)
     ch_multiqc_custom_config = params.multiqc_config ?
@@ -110,10 +155,9 @@ workflow MITOGENOMES {
     )
 
     emit:
-    mito_assembly = GETORGANELLE_FROMREADS.out.fasta
     multiqc_report = MULTIQC.out.report.toList() // channel: /path/to/multiqc_report.html
     versions       = ch_versions                 // channel: [ path(versions.yml) ]
-
+  
 
 
 }

@@ -8,11 +8,13 @@ process BLAST_BLASTN {
         'community.wave.seqera.io/library/blast:2.16.0--540f4b669b0a0ddd' }"
 
     input:
-    tuple val(meta) , path(fasta)
-    tuple val(meta2), path(db)
+    tuple val(meta), val(assembly_name), path(fasta), val(gene_type), val(annotation_name)
+    path(curated_blast_db)
+    path(taxdb)
 
     output:
-    tuple val(meta), path('*.txt'), emit: txt
+    tuple val(meta), path("${assembly_name}lca/${prefix}.filtered.tsv"), val(gene_type), val(assembly_name), val(annotation_name), emit: filtered
+    tuple val(meta), path("${assembly_name}"), emit: blast
     path "versions.yml"           , emit: versions
 
     when:
@@ -20,27 +22,24 @@ process BLAST_BLASTN {
 
     script:
     def args = task.ext.args ?: ''
-    def prefix = task.ext.prefix ?: "${meta.id}"
-    def is_compressed = fasta.getExtension() == "gz" ? true : false
-    def fasta_name = is_compressed ? fasta.getBaseName() : fasta
+    def prefix = task.ext.prefix ?: "blast.${gene_type}.${annotation_name}"
 
     """
-    if [ "${is_compressed}" == "true" ]; then
-        gzip -c -d ${fasta} > ${fasta_name}
-    fi
-
-    DB=`find -L ./ -name "*.nal" | sed 's/\\.nal\$//'`
-    if [ -z "\$DB" ]; then
-        DB=`find -L ./ -name "*.nin" | sed 's/\\.nin\$//'`
-    fi
-    echo Using \$DB
-
+    mkdir -p lca
+    
     blastn \\
         -num_threads ${task.cpus} \\
-        -db \$DB \\
-        -query ${fasta_name} \\
+        -db ${curated_blast_db} \\
+        -query ${fasta} \\
         ${args} \\
-        -out ${prefix}.txt
+        -out lca/${prefix}.tsv
+
+    # Filter the results
+    awk -F '\t' '{if ((\$15 - \$14 > 200) && (\$7 > 98)) print}' lca/${prefix}.tsv > lca/${prefix}.filtered.tsv
+
+    # Creat file structure and move results
+    mkdir -p ${assembly_name}
+    mv lca ${assembly_name}/
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

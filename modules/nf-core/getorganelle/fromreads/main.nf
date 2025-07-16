@@ -2,18 +2,22 @@ process GETORGANELLE_FROMREADS {
     tag "$meta.id"
     label 'process_high'
 
+    publishDir = [
+        path: { "${params.outdir}/mitogenomes/${meta.id}/${meta.id}.ilmn.${meta.date}.getorg${version.replaceAll('\\.', '')}" },
+        mode: params.publish_dir_mode
+    ]
+
     conda "bioconda::getorganelle=1.7.7.0"
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'https://depot.galaxyproject.org/singularity/getorganelle:1.7.7.0--pyh7cba7a3_0':
         'biocontainers/getorganelle:1.7.7.0--pyh7cba7a3_0' }"
 
     input:
-    tuple val(meta), path(fastq)
-    tuple val(organelle_type), path(db)  // getOrganelle has a database and config file
+    tuple val(meta), path(fastq), val(organelle_type), path(db), val(version)  // getOrganelle has a database and config file
 
     output:
     tuple val(meta), path("mtdna/${prefix}.fasta"), emit: fasta, optional: true
-    path "results/*"                                                     , emit: etc // the rest of the result files
+    tuple val(meta), path("mtdna/*")                                     , emit: etc // the rest of the result files
     path "versions.yml"                                                  , emit: versions
 
     when:
@@ -21,11 +25,9 @@ process GETORGANELLE_FROMREADS {
 
     script:
     def args   = task.ext.args ?: ''
-    def prefix = task.ext.prefix ?: "${meta.id}.ilmn.${meta.date}.getorg\${version}"
+    def prefix = task.ext.prefix ?: "${meta.id}.ilmn.${meta.date}.getorg${version.replaceAll('\\.', '')}"
 
     """
-    version=\$(get_organelle_from_reads.py --version | sed 's/^GetOrganelle v//g' | sed 's/\\.//g')
-
     get_organelle_from_reads.py \\
         $args \\
         --prefix ${prefix}. \\
@@ -37,9 +39,10 @@ process GETORGANELLE_FROMREADS {
         -o mtdna
 
     wait
-            
-        mv mtdna/${prefix}.*1.1.*.fasta mtdna/${prefix}.fasta
-        sed -i "/^>/s/.*/>${prefix}/g" mtdna/${prefix}.fasta
+    
+    # Move and rename the output file to include the version in the filename
+    mv mtdna/${prefix}.*1.1.*.fasta mtdna/${prefix}.fasta
+    sed -i "/^>/s/.*/>${prefix}/g" mtdna/${prefix}.fasta
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
@@ -49,13 +52,16 @@ process GETORGANELLE_FROMREADS {
 
     stub:
     def args = task.ext.args ?: ''
-    def prefix = task.ext.prefix ?: "${meta.id}"
+    def base_prefix = task.ext.prefix ?: "${meta.id}.ilmn.${meta.date}.getorg${version.replaceAll('\\.', '')}"
     """
-    touch results/${prefix}.${organelle_type}.fasta.gz
+    mkdir -p mtdna
+       
+    touch "mtdna/${prefix}.fasta"
+    touch "mtdna/stub_output.txt"
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
-        getorganelle: \$(get_organelle_from_reads.py --version | sed 's/^GetOrganelle v//g' )
+        getorganelle: \$(get_organelle_config.py --version | sed 's/^GetOrganelle v//g')
     END_VERSIONS
     """
 }
